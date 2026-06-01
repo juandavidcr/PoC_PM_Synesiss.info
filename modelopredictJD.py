@@ -80,19 +80,28 @@ def predecir_numeros(df, ventana_reciente=50):
         ["numero","score","frecuencia_h","frecuencia_r","brecha"]
     ]
 
-def verificar_combinacion(df, numeros_usuario):
+def verificar_combinacion(df, numeros_usuario, min_matches=3, exact=False):
+    """
+    Busca en el historial las filas que coinciden con los números del usuario.
+    - `numeros_usuario`: iterable de números seleccionados por el usuario
+    - `min_matches`: mínimo de coincidencias requeridas (por defecto 3)
+    - `exact`: si True, busca coincidencias exactamente igual a `min_matches`;
+       si False (por defecto), busca filas con >= `min_matches` coincidencias.
+    Devuelve hasta 20 resultados ordenados por coincidencias descendentes.
+    """
     cols = ["R1","R2","R3","R4","R5","R6"]
-    set_usr = set(numeros_usuario)
+    set_usr = set(int(n) for n in numeros_usuario)
     resultados = []
     for _, row in df.iterrows():
         set_row = {int(row[c]) for c in cols}
         match = set_usr & set_row
-        if len(match) >= 3:
+        count = len(match)
+        if (exact and count == int(min_matches)) or (not exact and count >= int(min_matches)):
             resultados.append({
                 "concurso": row["CONCURSO"],
                 "fecha": str(row["FECHA"].date()),
                 "numeros_sorteo": sorted(set_row),
-                "coincidencias": len(match),
+                "coincidencias": count,
                 "numeros_match": sorted(match),
             })
     return sorted(resultados, key=lambda x: -x["coincidencias"])[:20]
@@ -237,12 +246,18 @@ def api_predecir(ventana):
 def api_verificar():
     data = request.get_json(force=True)
     numeros = data.get("numeros", [])
-    if len(numeros) != 6:
-        return jsonify({"error": "Se requieren 6 números"}), 400
-    numeros = [int(n) for n in numeros if 1 <= int(n) <= NUMEROS_MAX]
-    if len(numeros) != 6:
-        return jsonify({"error": "Números fuera de rango 1-56"}), 400
-    return jsonify(verificar_combinacion(cargar_datos(), numeros))
+    # opcional: min_matches en el payload para exigir más coincidencias (ej: 5)
+    min_matches = int(data.get("min_matches", 3))
+    if not isinstance(numeros, list) or len(numeros) == 0:
+        return jsonify({"error": "Se requieren números en la clave 'numeros'"}), 400
+    try:
+        numeros = [int(n) for n in numeros]
+    except Exception:
+        return jsonify({"error": "Los elementos de 'numeros' deben ser enteros."}), 400
+    # validar rango
+    if any(not (1 <= n <= NUMEROS_MAX) for n in numeros):
+        return jsonify({"error": f"Números fuera de rango 1-{NUMEROS_MAX}"}), 400
+    return jsonify(verificar_combinacion(cargar_datos(), numeros, min_matches=min_matches))
 
 @app.route("/api/preview")
 def api_preview():
@@ -427,4 +442,7 @@ def api_bolsa_numeros():
 
 # ── Entrypoint ────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5050, threaded=True)
+    # Ejecutado directamente: forzar modo producción y desactivar debug
+    app.config.update({"ENV": "production", "DEBUG": False})
+    port = int(os.environ.get("PORT", "5050"))
+    app.run(host="0.0.0.0", port=port, threaded=True)
