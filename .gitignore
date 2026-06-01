@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.venv/
+.venv-models-nums/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Mac
+.DS_Store
+
+# Editor backups
+*~
+.~lock.*
+
+# Logs
+*.log
+
+# OS files
+Thumbs.db

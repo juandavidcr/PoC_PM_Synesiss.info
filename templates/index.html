@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Predictor Melate — JD</title>
+<script src="/plotly.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#13131f;color:#e2e8f0;font-family:'Segoe UI',sans-serif;padding:20px}
+  h1{color:#a78bfa;text-align:center;margin-bottom:8px;font-size:2rem}
+  .subtitle{text-align:center;color:#94a3b8;margin-bottom:30px;font-size:.9rem}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media(max-width:768px){.grid{grid-template-columns:1fr}}
+  .card{background:#1e1e2e;border-radius:12px;padding:20px;border:1px solid #2e2e4e}
+  .card h2{color:#c4b5fd;margin-bottom:14px;font-size:1.1rem}
+  input[type=number], textarea{background:#2a2a3e;border:1px solid #4c4c75;color:#e2e8f0;
+    border-radius:6px;padding:8px 12px;width:100%;margin-bottom:10px;font-size:.95rem}
+  textarea{min-height:140px;resize:vertical}
+  button{background:#7c3aed;color:white;border:none;border-radius:8px;
+    padding:10px 20px;cursor:pointer;font-size:.95rem;width:100%;transition:background .2s}
+  button:hover{background:#6d28d9}
+  .numeros-selector{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+  .num-btn{width:42px;height:42px;border-radius:50%;background:#2a2a3e;
+    border:2px solid #4c4c75;color:#e2e8f0;cursor:pointer;font-weight:bold;transition:all .15s}
+  .num-btn.selected{background:#7c3aed;border-color:#a78bfa;color:white}
+  .tags{display:flex;flex-wrap:wrap;gap:6px}
+  .tag{border-radius:20px;padding:4px 12px;font-size:.85rem;background:#7c3aed}
+  .tag.hot{background:#dc2626}.tag.cold{background:#1d4ed8}
+  table{width:100%;border-collapse:collapse;font-size:.85rem}
+  th{background:#2a2a3e;padding:8px;text-align:left;color:#a78bfa}
+  td{padding:7px 8px;border-bottom:1px solid #2a2e3e}
+  tr:hover td{background:#252535}
+  td[contenteditable="true"]{cursor:text;background:#1a3a4a;border:1px solid #4c7c9d}
+  td[contenteditable="true"]:focus{outline:none;background:#1f4556;border:1px solid #6ca3d4;box-shadow:0 0 4px #4a9eff}
+  .alert{background:#1e3a5f;border-left:3px solid #3b82f6;padding:10px;
+    border-radius:6px;margin-top:10px;font-size:.85rem}
+  .full{grid-column:1/-1}
+  #loader{display:none;text-align:center;color:#a78bfa;margin-top:10px}
+  .tracker-btn{background:#7c3aed;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block}
+  .tracker-btn:hover{background:#6d28d9}
+</style>
+</head>
+<body>
+  <h1>🎱 Predictor Melate</h1>
+  <p class="subtitle">Análisis estadístico del sorteo histórico - no garantiza resultados</p>
+  <div style="text-align:center;margin-bottom:20px">
+    <a href="/tracker" class="tracker-btn">⚽ World Cup 2026 Tracker</a>
+  </div>
+<div class="grid">
+
+  <div class="card full">
+    <h2>📊 Frecuencia histórica de números</h2>
+    <div id="chart-freq"></div>
+  </div>
+
+  <div class="card">
+    <h2>📈 Serie de tiempo por número</h2>
+    <label>Número (1-56):</label>
+    <input type="number" id="num-serie" min="1" max="56" value="7">
+    <button onclick="cargarSerie()">Ver serie de tiempo</button>
+    <div id="chart-serie"></div>
+  </div>
+
+  <div class="card">
+    <h2>🔥❄️ Números calientes y fríos</h2>
+    <label>Ventana de sorteos recientes:</label>
+    <input type="number" id="ventana-hc" value="30" min="10" max="500">
+    <button onclick="cargarHotCold()">Analizar</button>
+    <div id="hot-cold-result" style="margin-top:12px"></div>
+  </div>
+
+  <div class="card">
+    <h2>🔮 Predicción de próximos números</h2>
+    <label>Ventana reciente para el modelo:</label>
+    <input type="number" id="ventana-pred" value="50" min="10" max="500">
+    <button onclick="predecir()">Generar predicción</button>
+    <div id="resultado-pred" style="margin-top:14px"></div>
+  </div>
+
+  <div class="card full">
+    <h2>🎯 Verifica tu combinación contra el historial</h2>
+    <p style="color:#94a3b8;font-size:.85rem;margin-bottom:12px">
+      Selecciona exactamente 6 números para ver cuántas coincidencias tuvieron en sorteos pasados.
+    </p>
+    <div class="numeros-selector" id="picker"></div>
+    <p id="seleccion-label" style="color:#a78bfa;margin-bottom:10px">Seleccionados: ninguno</p>
+    <button onclick="verificar()">Verificar en historial</button>
+    <div id="loader">Buscando coincidencias...</div>
+    <div id="resultado-verif"></div>
+  </div>
+
+  <div class="card full">
+    <h2>💰 Números más frecuentes por rango de Bolsa Acumulada</h2>
+    <p style="color:#94a3b8;font-size:.85rem;margin-bottom:10px">
+      Mapa de calor que muestra cuántas veces apareció cada número según el tamaño del premio acumulado.
+      Colores brillantes = número muy frecuente en ese rango de bolsa. Útil para ver si ciertos números
+      "acompañan" bolsas grandes o chicas.
+    </p>
+    <button onclick="cargarBolsaNumeros()">Cargar gráfico bolsa vs números</button>
+    <div id="chart-bolsa-numeros"></div>
+  </div>
+
+  <div class="card full">
+    <h2>📄 Vista previa del CSV</h2>
+    <p style="color:#94a3b8;font-size:.85rem;margin-bottom:10px">
+      Muestra las primeras filas del archivo cargado. Puedes alternar entre el modo extendido y el modo compacto.
+    </p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button onclick="cargarPreview(500)">Ver primeras 500 filas</button>
+      <button id="toggle-preview-btn" onclick="togglePreview()">Mostrar preview</button>
+    </div>
+    <div id="preview-info" style="margin-top:10px;color:#94a3b8;font-size:.85rem"></div>
+    <div id="preview-table" style="margin-top:16px;overflow-x:auto;"></div>
+  </div>
+
+  <div class="card full">
+    <h2>➕ Agregar sorteo (manual)</h2>
+    <p style="color:#94a3b8;font-size:.85rem;margin-bottom:10px">Ingresa 6 o 7 números separados por comas. Fecha en formato DD/MM/YYYY.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <input type="text" id="input-numeros" placeholder="Ej: 4,15,19,25,29,33,53" style="flex:1;padding:8px;border-radius:6px;background:#2a2a3e;border:1px solid #4c4c75;color:#e2e8f0">
+      <input type="text" id="input-concurso" placeholder="CONCURSO (opcional)" style="width:160px;padding:8px;border-radius:6px;background:#2a2a3e;border:1px solid #4c4c75;color:#e2e8f0">
+      <input type="text" id="input-fecha" placeholder="DD/MM/YYYY (opcional)" style="width:160px;padding:8px;border-radius:6px;background:#2a2a3e;border:1px solid #4c4c75;color:#e2e8f0">
+      <input type="number" id="input-bolsa" placeholder="BOLSA (opcional)" style="width:160px;padding:8px;border-radius:6px;background:#2a2a3e;border:1px solid #4c4c75;color:#e2e8f0">
+    </div>
+    <div style="display:flex;gap:10px;max-width:420px">
+      <button onclick="addRow()">Agregar al CSV</button>
+      <button onclick="fetchFirstRow()">Mostrar primer registro</button>
+    </div>
+    <div id="add-result" style="margin-top:12px;color:#a78bfa"></div>
+    <div id="first-row" style="margin-top:12px;color:#94a3b8"></div>
+  </div>
+
+  <div class="card full">
+    <h2>🎲 Modo aleatorio</h2>
+    <p style="color:#94a3b8;font-size:.85rem;margin-bottom:10px">
+      Genera una sugerencia automática de 6 números más 1 adicional.
+    </p>
+    <button onclick="cargarAleatorio()">Generar sugerencia aleatoria</button>
+    <div id="aleatorio-result" style="margin-top:16px;"></div>
+  </div>
+
+  <div class="card full">
+    <h2>🧩 Co-ocurrencias entre pares de números</h2>
+    <p style="color:#94a3b8;font-size:.85rem;margin-bottom:10px">
+      Cada celda muestra cuántas veces dos números salieron <b>juntos</b> en el mismo sorteo.
+      Colores más brillantes = pareja más frecuente. Útil para detectar números que "viajan juntos".
+    </p>
+    <button onclick="cargarHeatmap()">Cargar mapa de calor (puede tardar unos segundos)</button>
+    <div id="chart-heatmap"></div>
+    <div id="top-pares"></div>
+  </div>
+
+</div>
+<!-- Scripts modulares -->
+<script src="/static/js/charts.js"></script>
+<script src="/static/js/verification.js"></script>
+<script src="/static/js/preview.js"></script>
+<script src="/static/js/random.js"></script>
+<script src="/static/js/addData.js"></script>
+<script src="/static/js/init.js"></script>
+</body>
+
+</html>

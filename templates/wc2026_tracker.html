@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Mundial 2026 — Tracker</title>
+<link rel="stylesheet" href="/static/css/wc2026_tracker.css">
+</head>
+<body>
+
+<div class="nav">
+  <h1>⚽ Mundial 2026</h1>
+  <button class="nav-btn active" onclick="showTab('grupos',this)">📊 Grupos</button>
+  <button class="nav-btn" onclick="showTab('partidos',this)">🎮 Partidos</button>
+  <button class="nav-btn" onclick="showTab('bracket',this)">🏆 Bracket</button>
+  <button class="nav-btn" onclick="showTab('stats',this)">📈 Estadísticas</button>
+  <button class="nav-btn" onclick="showTab('datos',this)">💾 Datos / CSV</button>
+  <button class="nav-btn" onclick="window.location='/'">Otros juegos</button>
+</div>
+
+<!-- GRUPOS -->
+<div id="tab-grupos" class="tab-content active">
+  <p class="section-title">Tabla de Grupos</p>
+  <div class="alert">Las posiciones se recalculan en tiempo real al guardar resultados en "Partidos".</div>
+  <div class="groups-grid" id="groups-container"></div>
+  <div class="legend" style="margin-top:14px">
+    <div class="legend-item"><div class="leg-dot" style="background:#004682"></div>Clasifica directamente (Play-offs)</div>
+    <div class="legend-item"><div class="leg-dot" style="background:#63cb7b"></div>Ranking de terceros</div>
+    <div class="legend-item"><div class="leg-dot" style="background:#3e3e5e"></div>Eliminado</div>
+  </div>
+</div>
+
+<!-- PARTIDOS -->
+<div id="tab-partidos" class="tab-content">
+  <p class="section-title">Registrar Resultados</p>
+  <div class="group-tabs" id="match-group-tabs"></div>
+  <div class="matches-wrapper" id="matches-container"></div>
+</div>
+
+<!-- BRACKET -->
+<div id="tab-bracket" class="tab-content">
+  <p class="section-title">Bracket Eliminatorio</p>
+  <div class="alert">Los slots se llenan automáticamente a medida que se completan los grupos. Para actualizar resultados de partidos eliminatorios: haz clic sobre el partido.</div>
+  <div class="bracket-scroll" id="bracket-container"></div>
+</div>
+
+<!-- ESTADÍSTICAS -->
+<div id="tab-stats" class="tab-content">
+  <p class="section-title">Estadísticas</p>
+  <div class="stats-grid">
+    <div class="card"><h3>⚽ Goleadores</h3><div id="stats-goals"></div></div>
+    <div class="card"><h3>🟨 Tarjetas</h3><div id="stats-cards"></div></div>
+    <div class="card"><h3>📊 Equipos — Goles marcados</h3><div id="stats-teams-gf"></div></div>
+    <div class="card"><h3>🥉 Ranking Terceros</h3><div id="stats-thirds"></div></div>
+  </div>
+</div>
+
+<!-- DATOS -->
+<div id="tab-datos" class="tab-content">
+  <p class="section-title">Exportar / Importar Datos</p>
+  <div class="export-grid">
+    <div class="card">
+      <h3>💾 Exportar CSV</h3>
+      <p style="color:#94a3b8;font-size:.83rem;margin:8px 0 12px">Descarga todos los resultados o la tabla de posiciones como CSV.</p>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn" onclick="exportCSV()">⬇ Descargar resultados.csv</button>
+        <button class="btn btn-outline" onclick="exportStandings()">⬇ Descargar standings.csv</button>
+        <button class="btn btn-outline" onclick="exportEvents()">⬇ Descargar eventos.csv</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>📂 Importar CSV</h3>
+      <p style="color:#94a3b8;font-size:.83rem;margin:8px 0 12px">Carga un archivo <code>resultados.csv</code> exportado previamente.</p>
+      <input type="file" id="import-file" accept=".csv" style="display:none" onchange="importCSV(this)">
+      <button class="btn btn-outline" onclick="document.getElementById('import-file').click()">📁 Seleccionar archivo CSV</button>
+      <div style="height:8px"></div>
+      <button class="btn" onclick="saveEstadoLocal()">💾 Guardar estado (localStorage)</button>
+      <button class="btn btn-outline" onclick="loadEstadoLocal()">🔃 Cargar estado (localStorage)</button>
+      <input type="file" id="import-estado-file" accept="application/json" style="display:none" onchange="importEstadoFile(this)">
+      <button class="btn btn-outline" onclick="document.getElementById('import-estado-file').click()">📂 Importar estado JSON</button>
+      <button class="btn" onclick="exportEstadoJSON()">⬇ Exportar matches.json</button>
+    </div>
+    <div class="card">
+      <h3>✍️ Editor rápido (editable)</h3>
+      <p style="color:#94a3b8;font-size:.83rem;margin:8px 0 12px">Edita resultados por grupo; los cambios se guardan automáticamente en localStorage bajo la clave <b>estado_wchtml_matches</b>.</p>
+      <div id="estado-editor" style="max-height:340px;overflow:auto;padding:6px;border-radius:6px;border:1px solid #2e2e4e;background:#0f0f1a"></div>
+    </div>
+    <div class="card">
+      <h3>🗑️ Resetear Torneo</h3>
+      <p style="color:#94a3b8;font-size:.83rem;margin:8px 0 12px">Elimina todos los resultados y eventos. <strong style="color:#f87171">Irreversible.</strong></p>
+      <button class="btn btn-danger" onclick="resetAll()">Reset completo</button>
+    </div>
+    <div class="card">
+      <h3>ℹ️ Resumen</h3>
+      <div id="summary-info" style="font-size:.83rem;color:#94a3b8;line-height:1.7"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal detalle partido -->
+<div class="modal-overlay" id="detail-modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3 id="modal-title">Detalle del partido</h3>
+    <div id="modal-body"></div>
+    <div style="margin-top:16px;text-align:right">
+      <button class="btn btn-outline" onclick="closeModal()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/wc2026_tracker.js"></script>
+</body>
+</html>
