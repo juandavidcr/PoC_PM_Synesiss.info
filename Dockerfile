@@ -6,7 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 # Puerto por defecto (se puede sobreescribir en tiempo de build/run)
-ARG PORT=8000
+ARG PORT=5050
 ENV PORT=${PORT}
 
 # Establecer el directorio de trabajo en el contenedor
