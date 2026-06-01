@@ -444,5 +444,5 @@ def api_bolsa_numeros():
 if __name__ == "__main__":
     # Ejecutado directamente: forzar modo producción y desactivar debug
     app.config.update({"ENV": "production", "DEBUG": False})
-    port = int(os.environ.get("PORT", "5050"))
+    port = int(os.environ.get("PORT", "8000"))
     app.run(host="0.0.0.0", port=port, threaded=True)
