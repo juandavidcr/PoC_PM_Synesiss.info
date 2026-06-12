@@ -12,7 +12,7 @@ const TEAMS = {
   "switzerland":  {name:"Switzerland",  img:"buRKTH76-88LAtdNt.png", group:"B"},
   "canada":       {name:"Canada",       img:"bymI0wAN-EqLGVN18.png", group:"B"},
   "qatar":        {name:"Qatar",        img:"WEb3WvAN-UPMdbcD9.png", group:"B"},
-  "bosnia":        {name:"Bosnia",        img:"WYjftaA6-Iyld3bDd.png",      group:"B"},
+  "bosnia":        {name:"Bosnia",        img:"https://api.fifa.com/api/v3/picture/flags-sq-4/BIH",      group:"B"},
   "scotland":     {name:"Scotland",     img:"zknbF9U0-lfZlm1uk.png", group:"C"},
   "brazil":       {name:"Brazil",       img:"S4Kz1kjC-88LAtdNt.png", group:"C"},
   "haiti":        {name:"Haiti",        img:"d2aGgEQq-GY05WHbt.png", group:"C"},
@@ -28,7 +28,7 @@ const TEAMS = {
   "netherlands":  {name:"Netherlands",  img:"MkxaoTAN-fazrR153.png", group:"F"},
   "tunisia":      {name:"Tunisia",      img:"rZRftulC-67eTsYY5.png", group:"F"},
   "japan":        {name:"Japan",        img:"Y7SDT7T0-8toS1iya.png", group:"F"},
-  "sweden":        {name:"Sweden",        img:"6eDtOume-fazrR153.png",       group:"F"},
+  "sweden":        {name:"Sweden",        img:"https://api.fifa.com/api/v3/picture/flags-sq-1/SWE",       group:"F"},
   "belgium":      {name:"Belgium",      img:"AqUnTDAN-dtrVaP64.png", group:"G"},
   "egypt":        {name:"Egypt",        img:"SKagcEU0-j9fRtEHh.png", group:"G"},
   "iran":         {name:"Iran",         img:"0OVmBa6k-h2ICxBRT.png", group:"G"},
@@ -48,7 +48,7 @@ const TEAMS = {
   "portugal":     {name:"Portugal",     img:"Grhsr8gT-vZG58BBc.png", group:"K"},
   "colombia":     {name:"Colombia",     img:"Y70aXOTH-C6kVdO5F.png", group:"K"},
   "uzbekistan":   {name:"Uzbekistan",   img:"najJX2oe-MeuncTkU.png", group:"K"},
-  "dr-congo":      {name:"DR Congo",      img:null,                         group:"K"},
+  "dr-congo":      {name:"DR Congo",      img:"https://api.fifa.com/api/v3/picture/flags-sq-1/COD",                         group:"K"},
   "croatia":      {name:"Croatia",      img:"GAQDu7jC-zXtZbqMA.png", group:"L"},
   "england":      {name:"England",      img:"lfoVvLPq-Iyld3bDd.png", group:"L"},
   "ghana":        {name:"Ghana",        img:"OzvG52Rq-8vfTQDSH.png", group:"L"},
@@ -136,6 +136,91 @@ function saveState(s){ localStorage.setItem("wc2026",JSON.stringify(s)); }
 function getMatch(id){ const s=loadState(); return s[id]||{home:null,away:null,status:"pending",events:[]}; }
 function setMatch(id,d){ const s=loadState(); s[id]=d; saveState(s); }
 
+let pendingConfirmAction = null;
+let pendingConfirmContext = null;
+
+function openConfirmModal(title, body, action, context){
+  pendingConfirmAction = action;
+  pendingConfirmContext = context || {};
+  document.getElementById("confirm-modal-title").textContent = title;
+  document.getElementById("confirm-modal-body").innerHTML = body;
+  document.getElementById("confirm-modal-error").textContent = "";
+  const btn = document.getElementById("confirm-modal-send");
+  if(btn){ btn.disabled = false; btn.textContent = "Enviar update"; }
+  document.getElementById("confirm-modal").classList.add("open");
+}
+
+function closeConfirmModal(){
+  document.getElementById("confirm-modal").classList.remove("open");
+  pendingConfirmAction = null;
+  pendingConfirmContext = null;
+}
+
+function showToast(message){
+  const toast = document.getElementById("status-toast");
+  if(!toast) return;
+  toast.textContent = message;
+  toast.style.display = "block";
+  toast.style.opacity = "1";
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(()=>{
+    toast.style.opacity = "0";
+    setTimeout(()=>{ toast.style.display = "none"; }, 250);
+  }, 2500);
+}
+
+async function sendUpdate(){
+  const btn = document.getElementById("confirm-modal-send");
+  const errorEl = document.getElementById("confirm-modal-error");
+  if(!pendingConfirmAction){
+    errorEl.textContent = "No hay acción configurada.";
+    return;
+  }
+  errorEl.textContent = "";
+  btn.disabled = true;
+  const originalText = btn.textContent;
+  btn.textContent = "Enviando...";
+  try {
+    const response = await fetch("/api/send_update", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      credentials: "same-origin",
+      body: JSON.stringify(pendingConfirmContext)
+    });
+    if(response.ok){
+      closeConfirmModal();
+      pendingConfirmAction();
+      showToast("✅ Actualización enviada correctamente.");
+      return;
+    }
+    if(response.status === 401 || response.status === 403){
+      errorEl.textContent = "No estás logueado. Por favor inicia sesión.";
+    } else if(response.status >= 500){
+      errorEl.textContent = "Error del servidor. Intenta más tarde.";
+    } else {
+      errorEl.textContent = `Error ${response.status}. Si el problema persiste, intenta más tarde.`;
+    }
+  } catch(err){
+    errorEl.textContent = "Error de conexión. Intenta más tarde.";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
+function initConfirmModalEvents(){
+  const sendButton = document.getElementById("confirm-modal-send");
+  const cancelButton = document.getElementById("confirm-modal-cancel");
+  if(sendButton){ sendButton.addEventListener("click", sendUpdate); }
+  if(cancelButton){ cancelButton.addEventListener("click", closeConfirmModal); }
+}
+
+if(document.readyState === "loading"){
+  document.addEventListener("DOMContentLoaded", initConfirmModalEvents);
+} else {
+  initConfirmModalEvents();
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // STANDINGS
 // ═══════════════════════════════════════════════════════════════════
@@ -204,14 +289,12 @@ function renderGroups(){
     // build numeric inputs per team for quick edit + save button
     const teams = GROUPS[g];
     const estado = JSON.parse(localStorage.getItem('estado_wchtml_matches')||'{}');
-    const locked = estado.lockedGroup || null;
     const savedGroup = estado.groups && estado.groups[g] ? estado.groups[g] : {};
     const matchesForGroup = GROUP_MATCHES.filter(m=>m.group===g);
     const inputsHtml = teams.map(t=>{
       const savedVal = savedGroup[t];
       const goals = (savedVal && typeof savedVal==='object') ? (savedVal.goals!==undefined?savedVal.goals:'') : (savedVal!==undefined?savedVal:'');
       const selMatch = (savedVal && typeof savedVal==='object') ? (savedVal.match||'') : '';
-      const disabled = locked && locked!==g ? 'disabled' : '';
       const matchOptions = ['<option value="">— Seleccionar partido —</option>', ...matchesForGroup.map(m=>{
         const label = `${m.id} ${tname(m.home)||''} vs ${tname(m.away)||''}`;
         const sel = selMatch===m.id? 'selected' : '';
@@ -220,13 +303,13 @@ function renderGroups(){
       return `<div style="display:flex;align-items:center;gap:8px;margin:6px 0">
         <div style="min-width:120px;color:#cbd5e1">${tname(t)}</div>
         <label style="color:#94a3b8;font-size:.8rem;margin-right:6px">Goles</label>
-        <input class="group-score-inp" data-group="${g}" data-team="${t}" type="number" min="0" value="${goals}" ${disabled} style="width:72px;padding:6px;border-radius:6px;border:1px solid #2e2e4e;background:#0b0b13;color:#e2e8f0">
+        <input id="group-${g}-team-${t}-goals" class="group-score-inp" data-group="${g}" data-team="${t}" type="number" min="0" value="${goals}" style="width:72px;padding:6px;border-radius:6px;border:1px solid #2e2e4e;background:#0b0b13;color:#e2e8f0">
         <label style="color:#94a3b8;font-size:.8rem;margin:0 6px">Partido</label>
-        <select class="group-match-select" data-group="${g}" data-team="${t}" ${disabled} style="padding:6px;border-radius:6px;border:1px solid #2e2e4e;background:#0b0b13;color:#e2e8f0">${matchOptions}</select>
+        <select id="group-${g}-team-${t}-match" class="group-match-select" data-group="${g}" data-team="${t}" style="padding:6px;border-radius:6px;border:1px solid #2e2e4e;background:#0b0b13;color:#e2e8f0">${matchOptions}</select>
       </div>`;
     }).join('');
 
-    return `<div class="group-card">
+    return `<div class="group-card" id="group-card-${g}">
       <div class="group-card-header">Grupo ${g}
         <span class="group-progress">${done}/${total} jugados</span>
       </div>
@@ -243,16 +326,25 @@ function renderGroups(){
       <div style="padding:10px;background:#151526;border-top:1px solid #232332;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
         <div style="flex:1;min-width:260px">${inputsHtml}</div>
         <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
-          <button class="btn" title="Guardar grupo ${g} (bloquear otros)" onclick="saveGroupFromCard('${g}')">💾 Guardar Grupo ${g}</button>
-          <button class="btn btn-outline" onclick="loadGroupFromCard('${g}')">🔃 Cargar guardado</button>
+          <button id="save-group-${g}" class="btn" title="Guardar grupo ${g}" onclick="saveGroupFromCard('${g}')">💾 Guardar Grupo ${g}</button>
+          <button id="load-group-${g}" class="btn btn-outline" onclick="loadGroupFromCard('${g}')">🔃 Cargar guardado</button>
         </div>
       </div>
     </div>`;
   }).join("");
 }
 
-// Save group inputs into grouped JSON and lock other groups
+// Save group inputs into grouped JSON
 function saveGroupFromCard(group){
+  openConfirmModal(
+    `Guardar Grupo ${group}`,
+    `Confirma que deseas enviar la actualización del Grupo ${group}. Haz clic en <strong>Enviar update</strong> para continuar.`,
+    ()=>doSaveGroupFromCard(group),
+    {action:'save-group', group}
+  );
+}
+
+function doSaveGroupFromCard(group){
   const inputs = Array.from(document.querySelectorAll(`input.group-score-inp[data-group="${group}"]`));
   const selects = Array.from(document.querySelectorAll(`select.group-match-select[data-group="${group}"]`));
   const obj = {};
@@ -274,6 +366,9 @@ function saveGroupFromCard(group){
         const d = getMatch(matchId);
         if(m.home===team) d.home = v;
         else if(m.away===team) d.away = v;
+        if(d.home!==null && d.away!==null){
+          d.status = "finished";
+        }
         setMatch(matchId,d);
       }
     }
@@ -281,15 +376,15 @@ function saveGroupFromCard(group){
     estado.events.push({group,team,match:matchId,goals:v,when,source:'ui-save'});
   });
   estado.groups[group]=obj;
-  estado.lockedGroup = group;
+  delete estado.lockedGroup;
   localStorage.setItem(key,JSON.stringify(estado));
-  // re-render to reflect match changes and locks
+  // re-render to reflect match changes
   renderMatchCards();
   renderGroups();
   renderStats();
   updateBracket();
   updateSummary();
-  alert('✅ Estado del Grupo '+group+' guardado; partidos y UI actualizados, otros grupos bloqueados.');
+  showToast(`✅ Estado del Grupo ${group} guardado; partidos y UI actualizados.`);
 }
 
 function loadGroupFromCard(group){
@@ -365,9 +460,13 @@ function saveScore(matchId){
   const a=aEl.value!==""?parseInt(aEl.value):null;
   const d=getMatch(matchId);
   d.home=h; d.away=a;
+  if(h!==null && a!==null){
+    d.status = "finished";
+  }
   setMatch(matchId,d);
   // after updating a match, also persist grouped estado JSON
   saveEstadoLocal();
+  renderMatchCards();
   renderGroups();
   renderStats();
   updateBracket();

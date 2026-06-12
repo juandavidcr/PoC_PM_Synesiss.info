@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Acceso — Predictor Melate</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#13131f;color:#e2e8f0;font-family:'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+  .login-card{background:#1e1e2e;border:1px solid #2e2e4e;border-radius:16px;padding:32px;max-width:420px;width:100%;box-shadow:0 12px 30px rgba(0,0,0,.25)}
+  h1{font-size:1.8rem;color:#a78bfa;margin-bottom:18px;text-align:center}
+  label{display:block;font-size:.95rem;color:#94a3b8;margin-bottom:6px}
+  input{width:100%;padding:12px 14px;margin-bottom:16px;border-radius:10px;border:1px solid #4c4c75;background:#2a2a3e;color:#e2e8f0;font-size:1rem}
+  button{width:100%;padding:12px 16px;border:none;border-radius:10px;background:#7c3aed;color:#fff;font-size:1rem;cursor:pointer;transition:background .2s}
+  button:hover{background:#6d28d9}
+  .alert{background:#7f1d1d;color:#fee2e2;padding:12px 14px;border-radius:10px;margin-bottom:16px;border:1px solid #a50e0e}
+  .meta{margin-top:14px;text-align:center;font-size:.9rem;color:#94a3b8}
+  .meta a{color:#c4b5fd;text-decoration:none}
+</style>
+</head>
+<body>
+  <div class="login-card">
+    <h1>Iniciar sesión</h1>
+    {% if error %}
+      <div class="alert">{{ error }}</div>
+    {% endif %}
+    <form method="post">
+      <label for="username">Usuario</label>
+      <input id="username" name="username" type="text" autocomplete="username" required>
+      <label for="password">Contraseña</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+      <button type="submit">Entrar</button>
+    </form>
+    <div style="margin:18px 0;text-align:center;color:#94a3b8;">O</div>
+    <a href="/auth/google" class="google-btn" style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:12px 16px;border-radius:10px;background:#fff;color:#111;text-decoration:none;font-weight:600;border:1px solid #d1d5db;">
+      <svg width="20" height="20" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" style="display:block">
+        <path fill="#EA4335" d="M24 9.5c3.5 0 6.3 1.2 8.3 2.3l6.1-6.1C34.3 3.1 29.5 1 24 1 14.9 1 7.4 5.9 3.2 13.7l7.4 5.8C12.9 13.5 18 9.5 24 9.5z"/>
+        <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-2.8-.4-4.1H24v7.8h12.7c-.5 3-2.3 5.6-5 7.3l7.7 6c4.5-4.1 6.9-10.2 6.9-17z"/>
+        <path fill="#FBBC05" d="M10.6 28.8c-.5-1.5-.8-3-.8-4.8s.3-3.3.8-4.8L3.2 13.7C1.2 17.1 0 20.9 0 24.5s1.2 7.4 3.2 10.8l7.4-5.7z"/>
+        <path fill="#34A853" d="M24 46.5c6.6 0 12.1-2.2 16.1-6l-7.7-6c-2.3 1.6-5.2 2.5-8.4 2.5-6 0-11.1-4-12.9-9.4l-7.4 5.8C7.4 42.1 14.9 46.5 24 46.5z"/>
+      </svg>
+      Continuar con Google
+    </a>
+    <p class="meta">Volver a <a href="/">inicio</a></p>
+  </div>
+</body>
+</html>

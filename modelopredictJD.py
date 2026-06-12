@@ -5,16 +5,22 @@ Basada en Historic.csv (columnas: CONCURSO, R1-R7, FECHA)
 """
 
 import os
+import datetime
+import functools
 import pandas as pd
 import numpy as np
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, session, g
 from collections import Counter
 import plotly.graph_objects as go
 import plotly.express as px
 import plotly
+from authlib.integrations.flask_client import OAuth
+from dotenv import load_dotenv
+import jwt
 import json
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
 local_csv = os.path.join(BASE_DIR, "Melate.csv")
 CSV_PATH = os.environ.get("CSV_PATH", local_csv)
 if not os.path.exists(CSV_PATH):
@@ -24,6 +30,69 @@ if not os.path.exists(CSV_PATH):
 NUMEROS_MAX = 56
 
 app = Flask(__name__, static_folder='static', static_url_path='/static')
+app.secret_key = os.environ.get("SECRET_KEY", "cambiar-en-produccion")
+LOGIN_USER = os.environ.get("LOGIN_USER", "admin")
+LOGIN_PASSWORD = os.environ.get("LOGIN_PASSWORD", "admin123")
+JWT_SECRET = os.environ.get("JWT_SECRET", "cambiar-en-produccion-jwt")
+JWT_ALGORITHM = "HS256"
+JWT_EXP_SECONDS = int(os.environ.get("JWT_EXP_SECONDS", "604800"))
+GOOGLE_CALLBACK_URL = os.environ.get("GOOGLE_CALLBACK_URL")
+
+oauth = OAuth(app)
+google = oauth.register(
+    name='google',
+    client_id=os.environ.get("GOOGLE_CLIENT_ID"),
+    client_secret=os.environ.get("GOOGLE_CLIENT_SECRET"),
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={
+        'scope': 'openid email profile'
+    }
+)
+
+def login_required(view):
+    @functools.wraps(view)
+    def wrapped_view(*args, **kwargs):
+        if not session.get("user"):
+            return redirect(url_for("login"))
+        return view(*args, **kwargs)
+    return wrapped_view
+
+
+def authenticate_user(username, password):
+    return username == LOGIN_USER and password == LOGIN_PASSWORD
+
+
+def generate_token(user_id):
+    payload = {
+        "id": user_id,
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(seconds=JWT_EXP_SECONDS),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def verify_token(token):
+    return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+
+
+def jwt_required(view):
+    @functools.wraps(view)
+    def wrapped_view(*args, **kwargs):
+        auth_header = request.headers.get("Authorization", "")
+        token = None
+        if auth_header.startswith("Bearer "):
+            token = auth_header.split(" ", 1)[1]
+        if not token:
+            return jsonify({"error": "No autorizado - Token no proporcionado"}), 401
+        try:
+            payload = verify_token(token)
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token expirado"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Token inválido"}), 401
+        g.user = payload.get("id")
+        return view(*args, **kwargs)
+    return wrapped_view
+
 
 # ── Datos ─────────────────────────────────────────────────────────────────────
 def cargar_datos():
@@ -212,12 +281,103 @@ def serve_plotly():
     return send_file(plotly_js, mimetype="application/javascript")
 
 @app.route("/")
+@login_required
 def index():
     return render_template("index.html")
 
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    error = None
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "").strip()
+        if authenticate_user(username, password):
+            session["user"] = username
+            return redirect(url_for("index"))
+        error = "Usuario o contraseña incorrectos"
+    elif request.method == "GET" and request.args.get("source") == "google":
+        error = "Error al intentar iniciar sesión con Google."
+    return render_template("login.html", error=error)
+
+@app.route("/auth/google")
+def auth_google():
+    # Enviar al usuario a la página de login de Google
+    if GOOGLE_CALLBACK_URL:
+        redirect_uri = GOOGLE_CALLBACK_URL
+    else:
+        redirect_uri = url_for('auth_google_callback', _external=True)
+    return google.authorize_redirect(redirect_uri)
+
+@app.route("/auth/google/callback")
+def auth_google_callback():
+    token = google.authorize_access_token()
+    user_info = None
+
+    # Registrar token para debugging
+    try:
+        app.logger.debug("Google token received: %s", token)
+    except Exception:
+        pass
+
+    # Extraer datos de usuario: primero intentar usar userinfo incluido en token
+    if isinstance(token, dict) and token.get("userinfo"):
+        user_info = token.get("userinfo")
+        app.logger.debug("Using userinfo from token: %s", user_info)
+    else:
+        # Intentar parsear id_token
+        try:
+            user_info = google.parse_id_token(token)
+            app.logger.debug("Parsed id_token: %s", user_info)
+        except Exception as e:
+            app.logger.debug("parse_id_token failed: %s", e)
+            try:
+                # Usar endpoint userinfo desde metadata
+                resp = google.get(google.server_metadata.get("userinfo_endpoint") or "https://openidconnect.googleapis.com/v1/userinfo")
+                app.logger.debug("userinfo status: %s, body: %s", getattr(resp, 'status_code', None), getattr(resp, 'text', None))
+                user_info = resp.json()
+                app.logger.debug("userinfo json: %s", user_info)
+            except Exception as e2:
+                app.logger.debug("userinfo request failed: %s", e2)
+                user_info = None
+
+    if not user_info:
+        return redirect(url_for("login", source="google"))
+    
+    # OPCIONAL: Aquí podrías verificar si el email es uno de los tuyos
+    # allowed_emails = ["tu.correo@gmail.com", "otro.admin@gmail.com"]
+    # if user_info.get("email") not in allowed_emails:
+    #     return "No tienes permiso para acceder", 403
+
+    session["user"] = user_info.get("email")
+    return redirect(url_for("index"))
+
+@app.route("/auth/token", methods=["POST"])
+def auth_token():
+    data = request.get_json(force=True) or {}
+    username = (data.get("username") or "").strip()
+    password = (data.get("password") or "").strip()
+    if not authenticate_user(username, password):
+        return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
+    token = generate_token(username)
+    return jsonify({"token": token, "expires_in": JWT_EXP_SECONDS})
+
+@app.route("/logout")
+def logout():
+    session.pop("user", None)
+    return redirect(url_for("login"))
+
 @app.route("/tracker")
+@login_required
 def tracker():
     return render_template("wc2026_tracker.html")
+
+@app.route("/api/send_update", methods=["POST"])
+def api_send_update():
+    if not session.get("user"):
+        return jsonify({"error": "No autorizado"}), 401
+    data = request.get_json(silent=True) or {}
+    app.logger.debug("API send_update received: %s", data)
+    return jsonify({"status": "ok"})
 
 @app.route("/api/frecuencias")
 def api_frecuencias():
@@ -442,7 +602,7 @@ def api_bolsa_numeros():
 
 # ── Entrypoint ────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    # Ejecutado directamente: forzar modo producción y desactivar debug
-    app.config.update({"ENV": "production", "DEBUG": False})
+    # Ejecutado directamente: modo desarrollo con DEBUG activado para debugging local
+    app.config.update({"ENV": "development", "DEBUG": True})
     port = int(os.environ.get("PORT", "5050"))
-    app.run(host="0.0.0.0", port=port, threaded=True)
+    app.run(host="0.0.0.0", port=port, threaded=True, debug=True)
