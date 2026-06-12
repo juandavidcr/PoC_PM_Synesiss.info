@@ -40,10 +40,10 @@ app.config.update({
     "SESSION_COOKIE_HTTPONLY": True,
 })
 
-app.secret_key = os.environ.get("SECRET_KEY", "cambiar-en-produccion")
+app.secret_key = os.environ.get("SECRET_KEY")
 LOGIN_USER = os.environ.get("LOGIN_USER", "admin")
-LOGIN_PASSWORD = os.environ.get("LOGIN_PASSWORD", "admin123")
-JWT_SECRET = os.environ.get("JWT_SECRET", "cambiar-en-produccion-jwt")
+LOGIN_PASSWORD = os.environ.get("LOGIN_PASSWORD")
+JWT_SECRET = os.environ.get("JWT_SECRET")
 JWT_ALGORITHM = "HS256"
 JWT_EXP_SECONDS = int(os.environ.get("JWT_EXP_SECONDS", "604800"))
 GOOGLE_CALLBACK_URL = os.environ.get("GOOGLE_CALLBACK_URL")
@@ -320,7 +320,13 @@ def auth_google():
 
 @app.route("/auth/google/callback")
 def auth_google_callback():
-    token = google.authorize_access_token()
+    redirect_uri = GOOGLE_CALLBACK_URL or url_for('auth_google_callback', _external=True)
+    try:
+        token = google.authorize_access_token(redirect_uri=redirect_uri)
+    except Exception as e:
+        app.logger.error("authorize_access_token failed: %s", e, exc_info=True)
+        return redirect(url_for("login", source="google"))
+
     user_info = None
 
     # Registrar token para debugging
