@@ -9,6 +9,7 @@ import datetime
 import functools
 import pandas as pd
 import numpy as np
+import requests
 from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, session, g
 from collections import Counter
 import plotly.graph_objects as go
@@ -321,8 +322,19 @@ def auth_google():
 @app.route("/auth/google/callback")
 def auth_google_callback():
     redirect_uri = GOOGLE_CALLBACK_URL or url_for('auth_google_callback', _external=True)
+
+    if request.args.get("error"):
+        app.logger.warning("Google callback returned error: %s", request.args.get("error"))
+        return redirect(url_for("login", source="google"))
+
     try:
         token = google.authorize_access_token(redirect_uri=redirect_uri)
+    except requests.exceptions.Timeout as e:
+        app.logger.error("Google token exchange timeout: %s", e, exc_info=True)
+        return redirect(url_for("login", source="google"))
+    except requests.exceptions.RequestException as e:
+        app.logger.error("Google token exchange network error: %s", e, exc_info=True)
+        return redirect(url_for("login", source="google"))
     except Exception as e:
         app.logger.error("authorize_access_token failed: %s", e, exc_info=True)
         return redirect(url_for("login", source="google"))
