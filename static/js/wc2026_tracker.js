@@ -171,40 +171,45 @@ function showToast(message){
 
 async function sendUpdate(){
   const btn = document.getElementById("confirm-modal-send");
-  const errorEl = document.getElementById("confirm-modal-error");
   if(!pendingConfirmAction){
-    errorEl.textContent = "No hay acción configurada.";
+    showToast("No hay acción configurada.");
     return;
   }
-  errorEl.textContent = "";
+  const action = pendingConfirmAction;
+  pendingConfirmAction = null;
+  const context = pendingConfirmContext || {};
+  pendingConfirmContext = null;
   btn.disabled = true;
   const originalText = btn.textContent;
   btn.textContent = "Enviando...";
   try {
+    action();
+    closeConfirmModal();
+    showToast("✅ Cambios aplicados localmente. Sincronizando...");
     const response = await fetch("/api/send_update", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       credentials: "same-origin",
-      body: JSON.stringify(pendingConfirmContext)
+      body: JSON.stringify(context)
     });
     if(response.ok){
-      closeConfirmModal();
-      pendingConfirmAction();
       showToast("✅ Actualización enviada correctamente.");
       return;
     }
     if(response.status === 401 || response.status === 403){
-      errorEl.textContent = "No estás logueado. Por favor inicia sesión.";
+      showToast("⚠️ No estás logueado. Por favor inicia sesión.");
     } else if(response.status >= 500){
-      errorEl.textContent = "Error del servidor. Intenta más tarde.";
+      showToast("⚠️ Error del servidor. Intenta más tarde.");
     } else {
-      errorEl.textContent = `Error ${response.status}. Si el problema persiste, intenta más tarde.`;
+      showToast(`⚠️ Error ${response.status}. Intenta más tarde.`);
     }
   } catch(err){
-    errorEl.textContent = "Error de conexión. Intenta más tarde.";
+    showToast("⚠️ Error de conexión. Intenta más tarde.");
   } finally {
-    btn.disabled = false;
-    btn.textContent = originalText;
+    if(btn){
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
   }
 }
 

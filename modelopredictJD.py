@@ -30,6 +30,16 @@ if not os.path.exists(CSV_PATH):
 NUMEROS_MAX = 56
 
 app = Flask(__name__, static_folder='static', static_url_path='/static')
+
+FLASK_ENV = os.environ.get("FLASK_ENV", os.environ.get("ENV", "production"))
+FLASK_DEBUG = os.environ.get("FLASK_DEBUG", "0").lower() in ("1", "true", "yes")
+app.config.update({
+    "ENV": FLASK_ENV,
+    "DEBUG": FLASK_DEBUG,
+    "SESSION_COOKIE_SECURE": FLASK_ENV == "production",
+    "SESSION_COOKIE_HTTPONLY": True,
+})
+
 app.secret_key = os.environ.get("SECRET_KEY", "cambiar-en-produccion")
 LOGIN_USER = os.environ.get("LOGIN_USER", "admin")
 LOGIN_PASSWORD = os.environ.get("LOGIN_PASSWORD", "admin123")
@@ -602,7 +612,5 @@ def api_bolsa_numeros():
 
 # ── Entrypoint ────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    # Ejecutado directamente: modo desarrollo con DEBUG activado para debugging local
-    app.config.update({"ENV": "development", "DEBUG": True})
     port = int(os.environ.get("PORT", "5050"))
-    app.run(host="0.0.0.0", port=port, threaded=True, debug=True)
+    app.run(host="0.0.0.0", port=port, threaded=True, debug=app.debug)
