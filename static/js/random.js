@@ -3,13 +3,15 @@
 function cargarAleatorio(){
   const container = document.getElementById('aleatorio-result');
   container.innerHTML = '<p style="color:#a78bfa;padding:16px">Generando sugerencia aleatoria...</p>';
-  fetch('/api/random')
+  return fetch('/api/random')
     .then(async r => {
       const contentType = r.headers.get("content-type");
       if (!contentType || !contentType.includes("application/json")) {
         throw new Error(`El servidor respondió con HTML en lugar de JSON (Status: ${r.status}). Verifica el backend.`);
       }
-      return r.json();
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'No se pudo generar la sugerencia.');
+      return data;
     })
     .then(data => {
       let html = '';

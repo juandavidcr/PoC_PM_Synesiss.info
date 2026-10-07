@@ -10,9 +10,9 @@
   body{background:#13131f;color:#e2e8f0;font-family:'Segoe UI',sans-serif;padding:20px}
   h1{color:#a78bfa;text-align:center;margin-bottom:8px;font-size:2rem}
   .subtitle{text-align:center;color:#94a3b8;margin-bottom:30px;font-size:.9rem}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
   @media(max-width:768px){.grid{grid-template-columns:1fr}}
-  .card{background:#1e1e2e;border-radius:12px;padding:20px;border:1px solid #2e2e4e}
+  .card{min-width:0;background:#1e1e2e;border-radius:12px;padding:20px;border:1px solid #2e2e4e}
   .card h2{color:#c4b5fd;margin-bottom:14px;font-size:1.1rem}
   input[type=number], textarea{background:#2a2a3e;border:1px solid #4c4c75;color:#e2e8f0;
     border-radius:6px;padding:8px 12px;width:100%;margin-bottom:10px;font-size:.95rem}
@@ -35,10 +35,16 @@
   td[contenteditable="true"]:focus{outline:none;background:#1f4556;border:1px solid #6ca3d4;box-shadow:0 0 4px #4a9eff}
   .alert{background:#1e3a5f;border-left:3px solid #3b82f6;padding:10px;
     border-radius:6px;margin-top:10px;font-size:.85rem}
+  .bulk-form{display:grid;grid-template-columns:minmax(0,1fr) 190px;gap:12px;align-items:start}
+  #input-bulk{min-width:0;min-height:220px;resize:vertical;padding:12px;line-height:1.5}
+  #first-row,#top-pares{overflow-x:auto}
+  .bulk-controls{display:flex;flex-direction:column;gap:10px}
+  .bulk-meta{color:#94a3b8;font-size:.8rem;line-height:1.4}
   .full{grid-column:1/-1}
   #loader{display:none;text-align:center;color:#a78bfa;margin-top:10px}
   .tracker-btn{background:#7c3aed;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block}
   .tracker-btn:hover{background:#6d28d9}
+  @media(max-width:768px){.bulk-form{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -48,10 +54,12 @@
       <p class="subtitle">Análisis estadístico del sorteo histórico - no garantiza resultados</p>
     </div>
     <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">
+      <button id="sync-storage-csv-btn" onclick="syncLocalStorageToCsv()" type="button" class="tracker-btn" style="border:none;">⬆️ Copiar localStorage → CSV</button>
       <a href="/tracker" class="tracker-btn">⚽ World Cup 2026 Tracker</a>
       <a href="/logout" class="tracker-btn" style="background:#ef4444;border-color:#dc2626">Salir</a>
     </div>
   </div>
+  <div id="sync-storage-status" style="text-align:center;color:#94a3b8;font-size:.85rem;margin:-6px 0 18px"></div>
 <div class="grid">
 
   <div class="card full">
@@ -79,8 +87,70 @@
     <h2>🔮 Predicción de próximos números</h2>
     <label>Ventana reciente para el modelo:</label>
     <input type="number" id="ventana-pred" value="50" min="10" max="500">
-    <button onclick="predecir()">Generar predicción</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0">
+      <label>
+        Números primos
+        <select id="cantidad-primos" onchange="actualizarConteoCombinacion()" style="background:#2a2a3e;border:1px solid #4c4c75;color:#e2e8f0;border-radius:6px;padding:8px 12px;width:100%;margin-top:5px;font-size:.95rem">
+          <option value="0">0</option><option value="1">1</option><option value="2">2</option>
+          <option value="3" selected>3</option><option value="4">4</option><option value="5">5</option>
+        </select>
+      </label>
+      <label>
+        Números compuestos
+        <select id="cantidad-compuestos" onchange="actualizarConteoCombinacion()" style="background:#2a2a3e;border:1px solid #4c4c75;color:#e2e8f0;border-radius:6px;padding:8px 12px;width:100%;margin-top:5px;font-size:.95rem">
+          <option value="0">0</option><option value="1">1</option><option value="2" selected>2</option>
+          <option value="3">3</option><option value="4">4</option><option value="5">5</option>
+        </select>
+      </label>
+    </div>
+    <p id="combinacion-count" style="color:#86efac;font-size:.8rem;margin-bottom:8px">Total: 5 números + R7 ✓</p>
+    <button onclick="predecir()">Generar predicción + sugerencia</button>
     <div id="resultado-pred" style="margin-top:14px"></div>
+  </div>
+
+  <div class="card">
+    <h2>💰 Números más frecuentes por rango de Bolsa Acumulada</h2>
+    <p style="color:#94a3b8;font-size:.85rem;margin-bottom:10px">
+      Mapa de calor que muestra cuántas veces apareció cada número según el tamaño del premio acumulado.
+      Colores brillantes = número muy frecuente en ese rango de bolsa. Útil para ver si ciertos números
+      "acompañan" bolsas grandes o chicas.
+    </p>
+    <button onclick="cargarBolsaNumeros()">Cargar gráfico bolsa vs números</button>
+    <div id="chart-bolsa-numeros"></div>
+  </div>
+
+  <div class="card full">
+    <h2>🤖 Agente de selección para el sorteo</h2>
+    <p style="color:#94a3b8;font-size:.85rem;margin-bottom:12px">
+      Elige 6 números principales de los conjuntos de primos y compuestos usando el historial.
+      Puedes limitar los candidatos; si dejas un conjunto vacío, el agente usa todos los números de ese tipo entre 1 y 56.
+    </p>
+    <div class="grid">
+      <div>
+        <label for="agente-primos">Cantidad de primos</label>
+        <input type="number" id="agente-primos" min="0" max="6" value="3" onchange="actualizarConteoAgente()">
+        <label for="agente-pool-primos">Primos candidatos (opcional, separados por comas)</label>
+        <input type="text" id="agente-pool-primos" placeholder="Ej: 2,3,7,11,19,31" style="width:100%;background:#2a2a3e;border:1px solid #4c4c75;color:#e2e8f0;border-radius:6px;padding:8px 12px;margin:6px 0 10px">
+      </div>
+      <div>
+        <label for="agente-compuestos">Cantidad de compuestos</label>
+        <input type="number" id="agente-compuestos" min="0" max="6" value="3" onchange="actualizarConteoAgente()">
+        <label for="agente-pool-compuestos">Compuestos candidatos (opcional, separados por comas)</label>
+        <input type="text" id="agente-pool-compuestos" placeholder="Ej: 4,8,12,20,35,48" style="width:100%;background:#2a2a3e;border:1px solid #4c4c75;color:#e2e8f0;border-radius:6px;padding:8px 12px;margin:6px 0 10px">
+      </div>
+    </div>
+    <label for="agente-ventana">Sorteos recientes para el análisis</label>
+    <input type="number" id="agente-ventana" min="10" max="500" value="50">
+    <label style="display:block;margin:4px 0 12px"><input type="checkbox" id="agente-excluir"> Excluir números del último sorteo</label>
+    <details style="color:#94a3b8;font-size:.85rem;margin-bottom:12px">
+      <summary style="cursor:pointer">Ver conjuntos disponibles</summary>
+      <p style="margin-top:8px"><strong>Primos:</strong> <span id="agente-conjunto-primos"></span></p>
+      <p style="margin-top:8px"><strong>Compuestos:</strong> <span id="agente-conjunto-compuestos"></span></p>
+      <p style="margin-top:8px">El 1 no es primo ni compuesto.</p>
+    </details>
+    <p id="agente-count" style="color:#86efac;font-size:.85rem;margin-bottom:10px">Total: 6 principales + 1 adicional ✓</p>
+    <button id="agente-generar" type="button" onclick="generarRecomendacionAgente()">Elegir números con el agente</button>
+    <div id="agente-result" style="margin-top:14px;overflow-x:auto" aria-live="polite"></div>
   </div>
 
   <div class="card full">
@@ -96,17 +166,6 @@
   </div>
 
   <div class="card full">
-    <h2>💰 Números más frecuentes por rango de Bolsa Acumulada</h2>
-    <p style="color:#94a3b8;font-size:.85rem;margin-bottom:10px">
-      Mapa de calor que muestra cuántas veces apareció cada número según el tamaño del premio acumulado.
-      Colores brillantes = número muy frecuente en ese rango de bolsa. Útil para ver si ciertos números
-      "acompañan" bolsas grandes o chicas.
-    </p>
-    <button onclick="cargarBolsaNumeros()">Cargar gráfico bolsa vs números</button>
-    <div id="chart-bolsa-numeros"></div>
-  </div>
-
-  <div class="card full">
     <h2>📄 Vista previa del CSV</h2>
     <p style="color:#94a3b8;font-size:.85rem;margin-bottom:10px">
       Muestra las primeras filas del archivo cargado. Puedes alternar entre el modo extendido y el modo compacto.
@@ -119,7 +178,7 @@
     <div id="preview-table" style="margin-top:16px;overflow-x:auto;"></div>
   </div>
 
-  <div class="card full">
+  <div class="card">
     <h2>➕ Agregar sorteo (manual)</h2>
     <p style="color:#94a3b8;font-size:.85rem;margin-bottom:10px">Ingresa 6 o 7 números separados por comas. Fecha en formato DD/MM/YYYY.</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
@@ -128,15 +187,35 @@
       <input type="text" id="input-fecha" placeholder="DD/MM/YYYY (opcional)" style="width:160px;padding:8px;border-radius:6px;background:#2a2a3e;border:1px solid #4c4c75;color:#e2e8f0">
       <input type="number" id="input-bolsa" placeholder="BOLSA (opcional)" style="width:160px;padding:8px;border-radius:6px;background:#2a2a3e;border:1px solid #4c4c75;color:#e2e8f0">
     </div>
-    <div style="display:flex;gap:10px;max-width:420px">
+    <div style="display:flex;gap:10px;max-width:420px;flex-wrap:wrap">
       <button onclick="addRow()">Agregar al CSV</button>
       <button onclick="fetchFirstRow()">Mostrar primer registro</button>
+      <button onclick="clearAddRowForm()" type="button">Limpiar formulario</button>
     </div>
     <div id="add-result" style="margin-top:12px;color:#a78bfa"></div>
     <div id="first-row" style="margin-top:12px;color:#94a3b8"></div>
+    <div style="margin-top:16px">
+      <button onclick="saveHistoricCsvToLocalStorage()" style="max-width:420px">Guardar datos actuales en localStorage</button>
+      <p id="historic-storage-result" style="margin-top:8px;color:#94a3b8;font-size:.85rem"></p>
+    </div>
   </div>
 
-  <div class="card full">
+  <div class="card">
+    <h2>➕ Agregar hasta 100 sorteos</h2>
+    <p style="color:#94a3b8;font-size:.85rem;margin-bottom:10px">
+      Introduce una línea por sorteo, con números separados por comas y fecha en formato DD/MM/YYYY.
+    </p>
+    <div class="bulk-form">
+      <textarea id="input-bulk" placeholder="20,27,32,38,43,54,26 — 04/10/2026&#10;06,18,24,44,50,55,39 — 02/10/2026"></textarea>
+      <div class="bulk-controls">
+        <div class="bulk-meta"><span id="bulk-count">0</span> líneas pendientes</div>
+        <button onclick="addRowsBulk()">Agregar</button>
+        <div id="bulk-result" style="color:#a78bfa;font-size:.85rem"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
     <h2>🎲 Modo aleatorio</h2>
     <p style="color:#94a3b8;font-size:.85rem;margin-bottom:10px">
       Genera una sugerencia automática de 6 números más 1 adicional.
@@ -145,7 +224,7 @@
     <div id="aleatorio-result" style="margin-top:16px;"></div>
   </div>
 
-  <div class="card full">
+  <div class="card">
     <h2>🧩 Co-ocurrencias entre pares de números</h2>
     <p style="color:#94a3b8;font-size:.85rem;margin-bottom:10px">
       Cada celda muestra cuántas veces dos números salieron <b>juntos</b> en el mismo sorteo.
@@ -160,6 +239,7 @@
 <!-- Scripts modulares -->
 <script src="/static/js/charts.js"></script>
 <script src="/static/js/verification.js"></script>
+<script src="/static/js/agent.js"></script>
 <script src="/static/js/preview.js"></script>
 <script src="/static/js/random.js"></script>
 <script src="/static/js/addData.js"></script>

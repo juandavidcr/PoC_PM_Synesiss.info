@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Administrar usuarios — Predictor Melate</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#13131f;color:#e2e8f0;font-family:'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+  .card{background:#1e1e2e;border:1px solid #2e2e4e;border-radius:16px;padding:32px;max-width:760px;width:100%;box-shadow:0 12px 30px rgba(0,0,0,.25)}
+  h1{font-size:1.8rem;color:#a78bfa;margin-bottom:18px;text-align:center}
+  label{display:block;font-size:.95rem;color:#94a3b8;margin-bottom:6px}
+  input{width:100%;padding:12px 14px;margin-bottom:16px;border-radius:10px;border:1px solid #4c4c75;background:#2a2a3e;color:#e2e8e0;font-size:1rem}
+  button{width:100%;padding:12px 16px;border:none;border-radius:10px;background:#7c3aed;color:#fff;font-size:1rem;cursor:pointer;transition:background .2s}
+  button:hover{background:#6d28d9}
+  .alert{background:#7f1d1d;color:#fee2e2;padding:12px 14px;border-radius:10px;margin-bottom:16px;border:1px solid #a50e0e}
+  .success{background:#1f2937;color:#d1fae5;padding:12px 14px;border-radius:10px;margin-bottom:16px;border:1px solid #10b981}
+  .meta{margin-top:14px;text-align:center;font-size:.9rem;color:#94a3b8}
+  .meta a{color:#c4b5fd;text-decoration:none}
+  .grid{display:grid;gap:18px}
+  .row{display:flex;gap:18px;flex-wrap:wrap}
+  .panel{background:#111827;border:1px solid #374151;border-radius:14px;padding:20px;flex:1;min-width:260px}
+  pre{background:#0f172a;color:#e2e8f0;padding:14px;border-radius:12px;overflow-x:auto;font-size:.9rem;line-height:1.5}
+  table{width:100%;border-collapse:collapse;margin-top:16px}
+  th,td{padding:12px 10px;border-bottom:1px solid #2e2e4e;text-align:left}
+  th{color:#cbd5e1}
+  td{color:#e2e8f0}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Administrar usuarios</h1>
+    {% if error %}
+      <div class="alert">{{ error }}</div>
+    {% endif %}
+    {% if message %}
+      <div class="success">{{ message }}</div>
+    {% endif %}
+    <div class="row">
+      <div class="panel">
+        <form method="post">
+          <label for="new_username">Nuevo usuario</label>
+          <input id="new_username" name="new_username" type="text" autocomplete="username" required>
+          <button type="submit">Generar credenciales</button>
+        </form>
+        {% if generated %}
+          <div style="margin-top:18px;">
+            <p style="color:#cbd5e1;margin-bottom:8px;font-weight:600;">Credenciales generadas</p>
+            <p><strong>Usuario:</strong> {{ generated.username }}</p>
+            <p><strong>Contraseña:</strong> <code>{{ generated.password }}</code></p>
+            <p style="margin-top:12px;font-weight:600;color:#94a3b8;">Token cifrado (AES-256)</p>
+            <pre>{{ generated.encrypted_payload }}</pre>
+            <p style="margin-top:12px;font-size:.9rem;color:#94a3b8;">Envía al usuario el token cifrado; el servidor usa la clave AES configurada en ENCRYPTION_KEY.</p>
+          </div>
+        {% endif %}
+      </div>
+      <div class="panel">
+        <p style="margin-bottom:14px;color:#cbd5e1;font-weight:600;">Usuarios existentes</p>
+        {% if users %}
+          <table>
+            <thead>
+              <tr><th>Usuario</th></tr>
+            </thead>
+            <tbody>
+              {% for user in users %}
+                <tr><td>{{ user }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p style="color:#94a3b8;">No hay usuarios creados aún.</p>
+        {% endif %}
+      </div>
+    </div>
+    <div class="meta">
+      <a href="/">Volver a inicio</a> · <a href="/logout">Cerrar sesión</a>
+    </div>
+  </div>
+</body>
+</html>

@@ -11,4 +11,11 @@ document.addEventListener('DOMContentLoaded', function(){
   
   // Cargar números calientes/fríos al inicio
   cargarHotCold();
+  actualizarConteoCombinacion();
+  inicializarAgente();
+
+  const bulkInput = document.getElementById('input-bulk');
+  bulkInput.addEventListener('input', function(){
+    document.getElementById('bulk-count').textContent = bulkInput.value.split(/\r?\n/).filter(line => line.trim()).length;
+  });
 });
